@@ -35,46 +35,25 @@ impl Resource {
 
     fn serialize(&mut self) {
         println!("Serializing...");
+        dbg!(&self.data);
         let mut file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(self.file_name())
             .unwrap();
-
-        let len = self.data.len();
-        file.write_all(&len.to_ne_bytes()).unwrap();
-        for (k, v) in self.data.drain() {
-            file.write_all(&k.to_ne_bytes()).unwrap();
-            let len = v.len();
-            println!("serialized key: {}, val len: {}", k, len);
-            file.write_all(&len.to_ne_bytes()).unwrap();
-            file.write_all(&v).unwrap();
-        }
+        let data = bincode::serialize(&self.data).unwrap();
+        file.write_all(&data).unwrap();
     }
 
     fn deserialize(&mut self) {
         println!("Deserializing...");
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .open(self.file_name())
             .unwrap();
-        let mut num_values = [0; 8];
-        file.read_exact(&mut num_values).unwrap();
-        let num_values = usize::from_ne_bytes(num_values);
-
-        for _ in 0..num_values {
-            let mut key = [0; 8];
-            file.read_exact(&mut key).unwrap();
-            let key = usize::from_ne_bytes(key);
-            let mut len = [0; 8];
-            file.read_exact(&mut len).unwrap();
-            let len = usize::from_ne_bytes(len);
-            println!("deserialized key: {}, val len: {}", key, len);
-            let mut data = vec![0; len];
-            file.read_exact(&mut data).unwrap();
-            self.insert(key, data);
-        }
+        self.data = bincode::deserialize_from(file).unwrap();
+        dbg!(&self.data);
         fs::remove_file(self.file_name()).unwrap();
     }
 }
