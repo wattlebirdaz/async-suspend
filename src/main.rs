@@ -5,6 +5,7 @@ use std::io::prelude::*;
 use std::time::Duration;
 
 struct Resource {
+    done: bool,
     id: usize,
     data: HashMap<usize, Vec<u8>>,
 }
@@ -16,6 +17,7 @@ impl Resource {
 
     fn new(id: usize) -> Self {
         Self {
+            done: false,
             id,
             data: HashMap::new(),
         }
@@ -33,17 +35,23 @@ impl Resource {
         std::path::Path::new(&self.file_name()).exists()
     }
 
+    fn completed(&mut self) {
+        self.done = true;
+    }
+
     fn serialize(&mut self) {
-        println!("Serializing...");
-        dbg!(&self.data);
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(self.file_name())
-            .unwrap();
-        let data = bincode::serialize(&self.data).unwrap();
-        file.write_all(&data).unwrap();
+        if !self.done {
+            println!("Serializing...");
+            dbg!(&self.data);
+            let mut file = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(self.file_name())
+                .unwrap();
+            let data = bincode::serialize(&self.data).unwrap();
+            file.write_all(&data).unwrap();
+        }
     }
 
     fn deserialize(&mut self) {
@@ -78,10 +86,16 @@ async fn some_function(mut resource: Resource) {
     loop {
         valx += 1;
         valy += 2;
+        if valx > 100 && valy > 200 {
+            println!("completed: (valx, valy) = ({}, {})", &valx, &valy);
+            break;
+        }
         tokio::time::sleep(Duration::from_millis(100)).await;
         resource.insert(1, bincode::serialize(&valx).unwrap());
         resource.insert(2, bincode::serialize(&valy).unwrap());
     }
+
+    resource.completed();
 }
 
 #[tokio::main]
