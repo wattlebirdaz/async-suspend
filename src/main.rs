@@ -4,15 +4,15 @@ use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::time::Duration;
 
-struct Resource {
+struct State {
     done: bool,
     id: usize,
     data: HashMap<usize, Vec<u8>>,
 }
 
-impl Resource {
+impl State {
     fn file_name(&self) -> String {
-        format!("resource-{}", self.id)
+        format!("state-{}", self.id)
     }
 
     fn new(id: usize) -> Self {
@@ -66,17 +66,17 @@ impl Resource {
     }
 }
 
-impl Drop for Resource {
+impl Drop for State {
     fn drop(&mut self) {
         self.serialize();
     }
 }
 
-async fn some_function(mut resource: Resource) {
-    let (mut valx, mut valy) = if resource.is_resumable() {
-        resource.deserialize();
-        let x = bincode::deserialize(&resource.get(1).unwrap()).unwrap();
-        let y = bincode::deserialize(&resource.get(2).unwrap()).unwrap();
+async fn some_function(mut state: State) {
+    let (mut valx, mut valy) = if state.is_resumable() {
+        state.deserialize();
+        let x = bincode::deserialize(&state.get(1).unwrap()).unwrap();
+        let y = bincode::deserialize(&state.get(2).unwrap()).unwrap();
         println!("deserialized: (valx, valy) = ({}, {})", &x, &y);
         (x, y)
     } else {
@@ -91,19 +91,18 @@ async fn some_function(mut resource: Resource) {
             break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
-        resource.insert(1, bincode::serialize(&valx).unwrap());
-        resource.insert(2, bincode::serialize(&valy).unwrap());
+        state.insert(1, bincode::serialize(&valx).unwrap());
+        state.insert(2, bincode::serialize(&valy).unwrap());
     }
 
-    resource.completed();
+    state.completed();
 }
 
 #[tokio::main]
 async fn main() {
-    let resource = Resource::new(479324290734);
+    let state = State::new(479324290734);
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
-    let result_fut =
-        tokio::task::spawn(Abortable::new(some_function(resource), abort_registration));
+    let result_fut = tokio::task::spawn(Abortable::new(some_function(state), abort_registration));
 
     tokio::time::sleep(Duration::from_secs(2)).await;
     abort_handle.abort();
