@@ -12,9 +12,9 @@ struct State<T: Serialize + DeserializeOwned> {
 }
 
 impl<T: Serialize + DeserializeOwned> State<T> {
-    fn new(completed: bool, id: usize, data: T) -> Self {
+    fn new(id: usize, data: T) -> Self {
         Self {
-            completed,
+            completed: false,
             id,
             data,
         }
@@ -28,7 +28,6 @@ impl<T: Serialize + DeserializeOwned> State<T> {
         if !self.completed {
             let data = bincode::serialize(&self.data).unwrap();
             println!("Serializing...");
-            // dbg!(&self.data);
             let mut file = OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -70,6 +69,12 @@ async fn some_function(mut state: State<MyState>) {
     let valy = &mut state.data.valy;
     println!("start: (valx, valy) = ({}, {})", *valx, *valy);
 
+    // some_function2 が終了したあと、 some_function が resume すると
+    // some_function2 が再実行される -> Generator のかたちがいいんじゃないか
+    let my_other_state = MyOtherState { a: vec![0, 1] };
+    let nested_state = State::new(160182641, my_other_state);
+    some_function2(nested_state).await;
+
     loop {
         *valx += 1;
         *valy += 2;
@@ -82,12 +87,36 @@ async fn some_function(mut state: State<MyState>) {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct MyOtherState {
+    a: Vec<usize>,
+}
+
+async fn some_function2(mut state: State<MyOtherState>) {
+    state.deserialize_data();
+    let a = &mut state.data.a;
+    println!("start: a: {:?}", *a);
+    let mut i = 0;
+
+    loop {
+        if a.len() > 100 {
+            state.completed = true;
+            break;
+        }
+        a.push(i);
+        i = i + 1;
+        if a.len() % 10 == 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
     let my_state = MyState { valx: 0, valy: 0 };
-    let state = State::new(false, 973298479, my_state);
+    let state = State::new(973298479, my_state);
 
     let result_fut = tokio::task::spawn(Abortable::new(some_function(state), abort_registration));
 
