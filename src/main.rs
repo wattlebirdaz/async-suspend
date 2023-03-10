@@ -59,7 +59,7 @@ impl<T: Serialize + DeserializeOwned> Drop for State<T> {
 
 #[derive(Serialize, Deserialize)]
 struct MyState {
-    program_counter: usize,
+    resuming_position: usize,
     valx: i32,
     valy: i32,
 }
@@ -71,22 +71,22 @@ async fn some_function(mut state: State<MyState>) {
     println!("start: (valx, valy) = ({}, {})", *valx, *valy);
 
     loop {
-        match state.data.program_counter {
+        match state.data.resuming_position {
             0 => {
                 let my_other_state = MyOtherState {
-                    program_counter: 0,
+                    resuming_position: 0,
                     a: vec![0, 1],
                 };
                 let nested_state = State::new(160182641, my_other_state);
                 some_function2(nested_state).await;
-                state.data.program_counter = 1;
+                state.data.resuming_position = 1;
             }
             1 => {
                 *valx += 1;
                 *valy += 2;
                 if *valx > 100 && *valy > 200 {
                     println!("completed: (valx, valy) = ({}, {})", *valx, *valy);
-                    state.data.program_counter = 2;
+                    state.data.resuming_position = 2;
                     continue;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -104,7 +104,7 @@ async fn some_function(mut state: State<MyState>) {
 
 #[derive(Serialize, Deserialize)]
 struct MyOtherState {
-    program_counter: usize,
+    resuming_position: usize,
     a: Vec<usize>,
 }
 
@@ -115,10 +115,10 @@ async fn some_function2(mut state: State<MyOtherState>) {
     let mut i = a.len();
 
     loop {
-        match state.data.program_counter {
+        match state.data.resuming_position {
             0 => {
                 if a.len() > 100 {
-                    state.data.program_counter = 1;
+                    state.data.resuming_position = 1;
                     continue;
                 }
                 a.push(i);
@@ -141,7 +141,7 @@ async fn main() {
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
     let my_state = MyState {
-        program_counter: 0,
+        resuming_position: 0,
         valx: 0,
         valy: 0,
     };
