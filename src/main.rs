@@ -6,14 +6,14 @@ use std::time::Duration;
 
 async fn some_function() {
     #[derive(Serialize, Deserialize)]
-    struct MyState {
+    struct LocalVariables {
         resuming_position: usize,
         valx: i32,
         valy: i32,
     }
     let mut state = State::new(
         973298479,
-        MyState {
+        LocalVariables {
             resuming_position: 0,
             valx: 0,
             valy: 0,
@@ -53,13 +53,13 @@ async fn some_function() {
 
 async fn some_function2() {
     #[derive(Serialize, Deserialize)]
-    struct MyOtherState {
+    struct LocalVariables {
         resuming_position: usize,
         a: Vec<usize>,
     }
     let mut state = State::new(
         160182641,
-        MyOtherState {
+        LocalVariables {
             resuming_position: 0,
             a: vec![],
         },
