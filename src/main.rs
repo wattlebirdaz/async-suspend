@@ -59,6 +59,7 @@ impl<T: Serialize + DeserializeOwned> Drop for State<T> {
 
 #[derive(Serialize, Deserialize)]
 struct MyState {
+    program_counter: usize,
     valx: i32,
     valy: i32,
 }
@@ -69,26 +70,41 @@ async fn some_function(mut state: State<MyState>) {
     let valy = &mut state.data.valy;
     println!("start: (valx, valy) = ({}, {})", *valx, *valy);
 
-    // some_function2 が終了したあと、 some_function が resume すると
-    // some_function2 が再実行される -> Generator のかたちがいいんじゃないか
-    let my_other_state = MyOtherState { a: vec![0, 1] };
-    let nested_state = State::new(160182641, my_other_state);
-    some_function2(nested_state).await;
-
     loop {
-        *valx += 1;
-        *valy += 2;
-        if *valx > 100 && *valy > 200 {
-            println!("completed: (valx, valy) = ({}, {})", *valx, *valy);
-            state.completed = true;
-            break;
+        match state.data.program_counter {
+            0 => {
+                let my_other_state = MyOtherState {
+                    program_counter: 0,
+                    a: vec![0, 1],
+                };
+                let nested_state = State::new(160182641, my_other_state);
+                some_function2(nested_state).await;
+                state.data.program_counter = 1;
+            }
+            1 => {
+                *valx += 1;
+                *valy += 2;
+                if *valx > 100 && *valy > 200 {
+                    println!("completed: (valx, valy) = ({}, {})", *valx, *valy);
+                    state.data.program_counter = 2;
+                    continue;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            2 => {
+                state.completed = true;
+                break;
+            }
+            _ => {
+                panic!("undefined state");
+            }
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct MyOtherState {
+    program_counter: usize,
     a: Vec<usize>,
 }
 
@@ -96,17 +112,26 @@ async fn some_function2(mut state: State<MyOtherState>) {
     state.deserialize_data();
     let a = &mut state.data.a;
     println!("start: a: {:?}", *a);
-    let mut i = 0;
+    let mut i = a.len();
 
     loop {
-        if a.len() > 100 {
-            state.completed = true;
-            break;
-        }
-        a.push(i);
-        i = i + 1;
-        if a.len() % 10 == 0 {
-            tokio::time::sleep(Duration::from_millis(10)).await;
+        match state.data.program_counter {
+            0 => {
+                if a.len() > 100 {
+                    state.data.program_counter = 1;
+                    continue;
+                }
+                a.push(i);
+                i = i + 1;
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            1 => {
+                state.completed = true;
+                break;
+            }
+            _ => {
+                panic!("undefined state");
+            }
         }
     }
 }
@@ -115,7 +140,11 @@ async fn some_function2(mut state: State<MyOtherState>) {
 async fn main() {
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
-    let my_state = MyState { valx: 0, valy: 0 };
+    let my_state = MyState {
+        program_counter: 0,
+        valx: 0,
+        valy: 0,
+    };
     let state = State::new(973298479, my_state);
 
     let result_fut = tokio::task::spawn(Abortable::new(some_function(state), abort_registration));
