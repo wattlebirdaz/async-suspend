@@ -75,7 +75,7 @@ async fn some_function(mut state: State<MyState>) {
             0 => {
                 let my_other_state = MyOtherState {
                     resuming_position: 0,
-                    a: vec![0, 1],
+                    a: vec![],
                 };
                 let nested_state = State::new(160182641, my_other_state);
                 some_function2(nested_state).await;
