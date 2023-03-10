@@ -64,7 +64,13 @@ struct MyState {
     valy: i32,
 }
 
-async fn some_function(mut state: State<MyState>) {
+async fn some_function() {
+    let my_state = MyState {
+        resuming_position: 0,
+        valx: 0,
+        valy: 0,
+    };
+    let mut state = State::new(973298479, my_state);
     state.deserialize_data();
     let valx = &mut state.data.valx;
     let valy = &mut state.data.valy;
@@ -73,12 +79,7 @@ async fn some_function(mut state: State<MyState>) {
     loop {
         match state.data.resuming_position {
             0 => {
-                let my_other_state = MyOtherState {
-                    resuming_position: 0,
-                    a: vec![],
-                };
-                let nested_state = State::new(160182641, my_other_state);
-                some_function2(nested_state).await;
+                some_function2().await;
                 state.data.resuming_position = 1;
             }
             1 => {
@@ -108,7 +109,12 @@ struct MyOtherState {
     a: Vec<usize>,
 }
 
-async fn some_function2(mut state: State<MyOtherState>) {
+async fn some_function2() {
+    let my_other_state = MyOtherState {
+        resuming_position: 0,
+        a: vec![],
+    };
+    let mut state = State::new(160182641, my_other_state);
     state.deserialize_data();
     let a = &mut state.data.a;
     println!("start: a: {:?}", *a);
@@ -140,14 +146,7 @@ async fn some_function2(mut state: State<MyOtherState>) {
 async fn main() {
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
-    let my_state = MyState {
-        resuming_position: 0,
-        valx: 0,
-        valy: 0,
-    };
-    let state = State::new(973298479, my_state);
-
-    let result_fut = tokio::task::spawn(Abortable::new(some_function(state), abort_registration));
+    let result_fut = tokio::task::spawn(Abortable::new(some_function(), abort_registration));
 
     tokio::time::sleep(Duration::from_secs(2)).await;
     abort_handle.abort();
